@@ -2,6 +2,7 @@ import pytest
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto.Random import get_random_bytes
+from Crypto.Util.Padding import pad, unpad  # Import padding utilities
 import base64
 
 @pytest.fixture
@@ -38,16 +39,11 @@ def aes_key():
     return get_random_bytes(16)
 
 def test_aes_encryption_decryption(aes_key):
-    def pad(message):
-        while len(message) % 16 != 0:
-            message += ' '
-        return message
-    
     # Encrypt a message
     cipher = AES.new(aes_key, AES.MODE_EAX)
     plaintext = "CYBER SECURITY AND SOFTWARE ENGINEERING TO THE WORLD."
-    padded_plaintext = pad(plaintext)
-    ciphertext, tag = cipher.encrypt_and_digest(padded_plaintext.encode('utf-8'))
+    padded_plaintext = pad(plaintext.encode('utf-8'), 16)  # Proper padding
+    ciphertext, tag = cipher.encrypt_and_digest(padded_plaintext)
     
     # Encode to base64 for storage
     encrypted_message = base64.b64encode(cipher.nonce + tag + ciphertext).decode('utf-8')
@@ -56,8 +52,7 @@ def test_aes_encryption_decryption(aes_key):
     encrypted_message_bytes = base64.b64decode(encrypted_message)
     nonce, tag, ciphertext = encrypted_message_bytes[:16], encrypted_message_bytes[16:32], encrypted_message_bytes[32:]
     cipher = AES.new(aes_key, AES.MODE_EAX, nonce=nonce)
-    decrypted_message = cipher.decrypt_and_verify(ciphertext, tag).decode('utf-8')
+    decrypted_message = unpad(cipher.decrypt_and_verify(ciphertext, tag), 16).decode('utf-8')
     
-    # Verify the decrypted message is the same as the original (after stripping padding)
-    assert decrypted_message.strip() == plaintext
-
+    # Verify the decrypted message is the same as the original
+    assert decrypted_message == plaintext
